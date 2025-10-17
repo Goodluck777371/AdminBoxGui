@@ -1,9 +1,12 @@
--- ⚙️ Ultimate AdminBox (Transparent Blue) — persistent settings, fly speeds, kill aura radius slider
+-- ⚙️ AdminBox v3 — Mobile Fly Edition (transparent blue, persistent settings)
 -- Created by Nasty GBT 😎
+-- Features: WalkSpeed, Noclip, Infinite Jump, Fly (uses default thumbstick + jump to ascend), Fly speeds, persistent settings, draggable UI, tap Walk to toggle
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
 local player = Players.LocalPlayer
 
 -- ---------- Character refs ----------
@@ -13,28 +16,380 @@ local function setCharacterRefs(char)
 	character = char
 	humanoid = char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid")
 end
-player.CharacterAdded:Connect(function(char) task.wait(0.05); setCharacterRefs(char) end)
+player.CharacterAdded:Connect(function(char) task.wait(0.06); setCharacterRefs(char) end)
 
--- ---------- Persistent defaults (saved to player attributes) ----------
+-- ---------- Persistent attributes (ensure defaults) ----------
 local function ensureAttr(name, default)
 	if player:GetAttribute(name) == nil then
 		player:SetAttribute(name, default)
 	end
 end
 
-ensureAttr("NBT_walkSpeed", 25)      -- starting walk speed
+ensureAttr("NBT_walkSpeed", 25)
 ensureAttr("NBT_noclip", false)
 ensureAttr("NBT_infJump", false)
 ensureAttr("NBT_flying", false)
-ensureAttr("NBT_flySpeed", 80)
-ensureAttr("NBT_killEnabled", false)
-ensureAttr("NBT_auraRadius", 100)
+ensureAttr("NBT_flySpeed", 50)
 
--- local state (mirror of attrs)
+-- local mirrors
 local noclip = player:GetAttribute("NBT_noclip")
 local infJump = player:GetAttribute("NBT_infJump")
 local flying = player:GetAttribute("NBT_flying")
-local flySpeed = player:GetAttribute("NBT_flySpeed") or 80
+local flySpeed = player:GetAttribute("NBT_flySpeed") or 50
+
+-- ---------- GUI root ----------
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "NastyGBT_AdminBox"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = game.CoreGui
+
+-- small open button (tap to open/close)
+local OpenBtn = Instance.new("TextButton", ScreenGui)
+OpenBtn.Size = UDim2.new(0,60,0,60)
+OpenBtn.Position = UDim2.new(0,20,0.5,-30)
+OpenBtn.AnchorPoint = Vector2.new(0,0.5)
+OpenBtn.Text = "Walk"
+OpenBtn.Font = Enum.Font.GothamBold
+OpenBtn.TextSize = 18
+OpenBtn.BackgroundColor3 = Color3.fromRGB(6,130,230)
+OpenBtn.TextColor3 = Color3.new(1,1,1)
+OpenBtn.AutoButtonColor = true
+Instance.new("UICorner", OpenBtn).CornerRadius = UDim.new(1,0)
+
+-- main frame (transparent blue)
+local Frame = Instance.new("Frame", ScreenGui)
+Frame.Size = UDim2.new(0,360,0,420)
+Frame.Position = UDim2.new(0.5,-180,0.5,-210)
+Frame.BackgroundColor3 = Color3.fromRGB(12,95,180)
+Frame.BackgroundTransparency = 0.6
+Frame.Active = true
+Frame.Draggable = true
+Instance.new("UICorner", Frame).CornerRadius = UDim.new(0,12)
+Frame.Visible = false
+Frame.ClipsDescendants = true
+
+-- Titlebar (for minimize & close)
+local TitleBar = Instance.new("Frame", Frame)
+TitleBar.Size = UDim2.new(1,0,0,36)
+TitleBar.Position = UDim2.new(0,0,0,0)
+TitleBar.BackgroundColor3 = Color3.fromRGB(10,80,155)
+TitleBar.BackgroundTransparency = 0.5
+Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0,12)
+
+local TitleText = Instance.new("TextLabel", TitleBar)
+TitleText.Text = "⚙️ Admin Box"
+TitleText.Size = UDim2.new(1,-120,1,0)
+TitleText.Position = UDim2.new(0,12,0,0)
+TitleText.BackgroundTransparency = 1
+TitleText.TextColor3 = Color3.new(1,1,1)
+TitleText.Font = Enum.Font.GothamBold
+TitleText.TextSize = 16
+TitleText.TextXAlignment = Enum.TextXAlignment.Left
+
+local MinBtn = Instance.new("TextButton", TitleBar)
+MinBtn.Text = "-"
+MinBtn.Size = UDim2.new(0,36,0,28)
+MinBtn.Position = UDim2.new(1,-128,0,3)
+MinBtn.BackgroundColor3 = Color3.fromRGB(8,70,140)
+Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0,6)
+
+local CloseBtn = Instance.new("TextButton", TitleBar)
+CloseBtn.Text = "X"
+CloseBtn.Size = UDim2.new(0,36,0,28)
+CloseBtn.Position = UDim2.new(1,-74,0,3)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(12,90,170)
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0,6)
+
+-- Footer
+local Footer = Instance.new("TextLabel", Frame)
+Footer.Text = "Created by Nasty GBT 😎"
+Footer.Size = UDim2.new(1,-14,0,24)
+Footer.Position = UDim2.new(0,7,1,-32)
+Footer.BackgroundTransparency = 0.6
+Footer.TextColor3 = Color3.fromRGB(180,235,255)
+Footer.Font = Enum.Font.GothamBold
+Footer.TextSize = 14
+Instance.new("UICorner", Footer).CornerRadius = UDim.new(0,8)
+
+-- ---------------- WalkSpeed ----------------
+local leftX = 14
+local WalkLabel = Instance.new("TextLabel", Frame)
+WalkLabel.Text = "WalkSpeed"
+WalkLabel.Size = UDim2.new(0,140,0,22)
+WalkLabel.Position = UDim2.new(0,leftX,0,54)
+WalkLabel.BackgroundTransparency = 1
+WalkLabel.TextColor3 = Color3.fromRGB(230,250,255)
+WalkLabel.Font = Enum.Font.Gotham
+WalkLabel.TextSize = 14
+WalkLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local speeds = {25,30,50,100}
+local speedButtons = {}
+for i, speed in ipairs(speeds) do
+	local btn = Instance.new("TextButton", Frame)
+	btn.Size = UDim2.new(0,80,0,34)
+	btn.Position = UDim2.new(0,leftX + (i-1)*86,0,82)
+	btn.Text = tostring(speed)
+	btn.Font = Enum.Font.Gotham
+	btn.TextSize = 14
+	btn.BackgroundColor3 = Color3.fromRGB(20,60,110)
+	btn.TextColor3 = Color3.fromRGB(220,245,255)
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0,8)
+	speedButtons[tostring(speed)] = btn
+	btn.MouseButton1Click:Connect(function()
+		player:SetAttribute("NBT_walkSpeed", speed)
+		if humanoid then humanoid.WalkSpeed = speed end
+		updateButtonStates()
+	end)
+end
+
+-- ---------------- Noclip ----------------
+local NoclipBtn = Instance.new("TextButton", Frame)
+NoclipBtn.Size = UDim2.new(0,170,0,34)
+NoclipBtn.Position = UDim2.new(0,leftX,0,132)
+NoclipBtn.Text = "Noclip: OFF"
+NoclipBtn.Font = Enum.Font.Gotham
+NoclipBtn.TextSize = 14
+NoclipBtn.BackgroundColor3 = Color3.fromRGB(150,40,40)
+NoclipBtn.TextColor3 = Color3.fromRGB(230,245,255)
+Instance.new("UICorner", NoclipBtn).CornerRadius = UDim.new(0,8)
+NoclipBtn.MouseButton1Click:Connect(function()
+	noclip = not noclip
+	player:SetAttribute("NBT_noclip", noclip)
+	updateButtonStates()
+end)
+
+RunService.Stepped:Connect(function()
+	if noclip and character then
+		for _, p in pairs(character:GetDescendants()) do
+			if p:IsA("BasePart") then p.CanCollide = false end
+		end
+	end
+end)
+
+-- ---------------- Infinite Jump ----------------
+local JumpBtn = Instance.new("TextButton", Frame)
+JumpBtn.Size = UDim2.new(0,260,0,34)
+JumpBtn.Position = UDim2.new(0,leftX,0,182)
+JumpBtn.Text = "Infinite Jump: OFF"
+JumpBtn.Font = Enum.Font.Gotham
+JumpBtn.TextSize = 14
+JumpBtn.BackgroundColor3 = Color3.fromRGB(150,40,40)
+JumpBtn.TextColor3 = Color3.fromRGB(230,245,255)
+Instance.new("UICorner", JumpBtn).CornerRadius = UDim.new(0,8)
+JumpBtn.MouseButton1Click:Connect(function()
+	infJump = not infJump
+	player:SetAttribute("NBT_infJump", infJump)
+	updateButtonStates()
+end)
+
+local jumpConn
+if not jumpConn then
+	jumpConn = UserInputService.JumpRequest:Connect(function()
+		if infJump and humanoid then humanoid:ChangeState("Jumping") end
+	end)
+end
+
+-- ---------------- Fly (mobile thumbstick + jump ascend) ----------------
+local FlyBtn = Instance.new("TextButton", Frame)
+FlyBtn.Size = UDim2.new(0,170,0,34)
+FlyBtn.Position = UDim2.new(0,leftX,0,232)
+FlyBtn.Text = "Fly: OFF"
+FlyBtn.Font = Enum.Font.Gotham
+FlyBtn.TextSize = 14
+FlyBtn.BackgroundColor3 = Color3.fromRGB(150,40,40)
+FlyBtn.TextColor3 = Color3.fromRGB(230,245,255)
+Instance.new("UICorner", FlyBtn).CornerRadius = UDim.new(0,8)
+
+-- Fly speed buttons
+local fSpeeds = {25,50,100}
+local fButtons = {}
+for i, fs in ipairs(fSpeeds) do
+	local b = Instance.new("TextButton", Frame)
+	b.Size = UDim2.new(0,80,0,30)
+	b.Position = UDim2.new(0,leftX + (i-1)*86,0,274)
+	b.Text = tostring(fs)
+	b.Font = Enum.Font.Gotham
+	b.TextSize = 14
+	b.BackgroundColor3 = Color3.fromRGB(20,60,110)
+	b.TextColor3 = Color3.fromRGB(220,245,255)
+	Instance.new("UICorner", b).CornerRadius = UDim.new(0,8)
+	fButtons[tostring(fs)] = b
+	b.MouseButton1Click:Connect(function()
+		flySpeed = fs
+		player:SetAttribute("NBT_flySpeed", flySpeed)
+		updateButtonStates()
+	end)
+end
+
+-- fly controllers
+local bodyGyro, bodyVel, flyConn
+local jumpPressed = false
+
+-- track JumpRequest pressed state (works for mobile jump button)
+UserInputService.JumpRequest:Connect(function() jumpPressed = true; task.delay(0.12, function() jumpPressed = false end) end)
+
+FlyBtn.MouseButton1Click:Connect(function()
+	flying = not flying
+	player:SetAttribute("NBT_flying", flying)
+	updateButtonStates()
+	-- create or remove controllers as needed
+	if flying then
+		-- attempt to create controllers when possible
+		if character and character.PrimaryPart then
+			if bodyGyro then bodyGyro:Destroy() end
+			if bodyVel then bodyVel:Destroy() end
+			bodyGyro = Instance.new("BodyGyro", character.PrimaryPart)
+			bodyGyro.MaxTorque = Vector3.new(9e9,9e9,9e9)
+			bodyGyro.P = 10000
+			bodyVel = Instance.new("BodyVelocity", character.PrimaryPart)
+			bodyVel.MaxForce = Vector3.new(9e9,9e9,9e9)
+			bodyVel.Velocity = Vector3.new(0,0,0)
+		end
+		if not flyConn then
+			flyConn = RunService.RenderStepped:Connect(function()
+				if flying and character and character.PrimaryPart and bodyGyro and bodyVel and humanoid then
+					-- use Humanoid.MoveDirection for joystick input (works on mobile)
+					local moveDir = humanoid.MoveDirection -- Vector3 relative to world (camera-relative)
+					-- camera forward/right for orientation
+					local cam = workspace.CurrentCamera
+					local forward = cam.CFrame.LookVector
+					local right = cam.CFrame.RightVector
+					-- project moveDir onto camera axes to get local movement vector
+					local move = (forward * moveDir.Z) + (right * moveDir.X)
+					-- vertical control: use jump button to ascend a bit; otherwise steady hover
+					local vertical = 0
+					if jumpPressed then vertical = 1 end
+					-- assemble velocity
+					local horizontalVelocity = move.Unit.Magnitude > 0 and move.Unit * flySpeed or Vector3.new(0,0,0)
+					-- scale by magnitude (humanoid.MoveDirection magnitude is mostly 1 or 0)
+					horizontalVelocity = horizontalVelocity * move.Magnitude
+					bodyGyro.CFrame = cam.CFrame
+					bodyVel.Velocity = Vector3.new(horizontalVelocity.X, vertical * flySpeed * 0.7, horizontalVelocity.Z)
+					-- keep Humanoid in platformstand so default gravity doesn't fight too hard (optional)
+					-- some games may behave better if humanoid.PlatformStand = true; avoid forcing it globally.
+					-- We'll lightly reduce humanoid state to prevent weird stuttering:
+					-- if humanoid and humanoid.Parent then humanoid:ChangeState(Enum.HumanoidStateType.Physics) end
+				end
+			end)
+		end
+	else
+		if flyConn then flyConn:Disconnect(); flyConn = nil end
+		if bodyGyro then bodyGyro:Destroy(); bodyGyro = nil end
+		if bodyVel then bodyVel:Destroy(); bodyVel = nil end
+	end
+end)
+
+-- ---------------- UI update function ----------------
+function updateButtonStates()
+	-- WalkSpeed
+	local ws = player:GetAttribute("NBT_walkSpeed") or 25
+	if humanoid then humanoid.WalkSpeed = ws end
+	for s, btn in pairs(speedButtons) do
+		if tonumber(s) == ws then btn.BackgroundColor3 = Color3.fromRGB(0,160,0)
+		else btn.BackgroundColor3 = Color3.fromRGB(20,60,110) end
+	end
+
+	-- noclip
+	noclip = player:GetAttribute("NBT_noclip")
+	if noclip then NoclipBtn.Text = "Noclip: ON"; NoclipBtn.BackgroundColor3 = Color3.fromRGB(0,160,0)
+	else NoclipBtn.Text = "Noclip: OFF"; NoclipBtn.BackgroundColor3 = Color3.fromRGB(150,40,40) end
+
+	-- inf jump
+	infJump = player:GetAttribute("NBT_infJump")
+	if infJump then JumpBtn.Text = "Infinite Jump: ON"; JumpBtn.BackgroundColor3 = Color3.fromRGB(0,160,0)
+	else JumpBtn.Text = "Infinite Jump: OFF"; JumpBtn.BackgroundColor3 = Color3.fromRGB(150,40,40) end
+
+	-- fly
+	flying = player:GetAttribute("NBT_flying")
+	flySpeed = player:GetAttribute("NBT_flySpeed") or flySpeed
+	if flying then FlyBtn.Text = "Fly: ON"; FlyBtn.BackgroundColor3 = Color3.fromRGB(0,160,0)
+	else FlyBtn.Text = "Fly: OFF"; FlyBtn.BackgroundColor3 = Color3.fromRGB(150,40,40) end
+	for s, b in pairs(fButtons) do
+		if tonumber(s) == flySpeed then b.BackgroundColor3 = Color3.fromRGB(0,160,0) else b.BackgroundColor3 = Color3.fromRGB(20,60,110) end
+	end
+end
+
+-- ensure initial states
+updateButtonStates()
+
+-- reapply walk speed and recreate fly controllers after respawn
+player.CharacterAdded:Connect(function(char)
+	task.wait(0.06)
+	setCharacterRefs(char)
+	local ws = player:GetAttribute("NBT_walkSpeed") or 25
+	if humanoid then humanoid.WalkSpeed = ws end
+	-- recreate fly controllers if still flying
+	if player:GetAttribute("NBT_flying") then
+		-- cleanup old
+		if bodyGyro then bodyGyro:Destroy(); bodyGyro=nil end
+		if bodyVel then bodyVel:Destroy(); bodyVel=nil end
+		-- create new when available
+		if character and character.PrimaryPart then
+			bodyGyro = Instance.new("BodyGyro", character.PrimaryPart)
+			bodyGyro.MaxTorque = Vector3.new(9e9,9e9,9e9)
+			bodyGyro.P = 10000
+			bodyVel = Instance.new("BodyVelocity", character.PrimaryPart)
+			bodyVel.MaxForce = Vector3.new(9e9,9e9,9e9)
+		end
+	end
+	task.delay(0.12, updateButtonStates)
+end)
+
+-- ---------- Open/close animation (fade + slide) ----------
+local function tweenShow()
+	Frame.Visible = true
+	Frame.Position = UDim2.new(0.5,-180,0.5,-240)
+	Frame.BackgroundTransparency = 1
+	local t1 = TweenService:Create(Frame, TweenInfo.new(0.22, Enum.EasingStyle.Quad), {BackgroundTransparency = 0.6, Position = UDim2.new(0.5,-180,0.5,-210)})
+	t1:Play()
+end
+local function tweenHide()
+	local t = TweenService:Create(Frame, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {BackgroundTransparency = 1, Position = UDim2.new(0.5,-180,0.5,-240)})
+	t:Play()
+	t.Completed:Connect(function() Frame.Visible = false end)
+end
+
+OpenBtn.MouseButton1Click:Connect(function()
+	if Frame.Visible then
+		tweenHide()
+	else
+		tweenShow()
+	end
+end)
+
+-- Min button hides (same as tap)
+MinBtn.MouseButton1Click:Connect(function() tweenHide() end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+	-- cleanup fly controllers
+	if flyConn then flyConn:Disconnect(); flyConn=nil end
+	if bodyGyro then bodyGyro:Destroy(); bodyGyro=nil end
+	if bodyVel then bodyVel:Destroy(); bodyVel=nil end
+	ScreenGui:Destroy()
+end)
+
+-- housekeeping: apply noclip each step if on
+RunService.Stepped:Connect(function()
+	if noclip and character then
+		for _, p in pairs(character:GetDescendants()) do
+			if p:IsA("BasePart") then p.CanCollide = false end
+		end
+	end
+end)
+
+-- keep UI colors updated lightly
+RunService.Heartbeat:Connect(function()
+	updateButtonStates()
+end)
+
+-- Ensure initial humanoid walkspeed from attribute
+task.delay(0.1, function()
+	local ws = player:GetAttribute("NBT_walkSpeed") or 25
+	if humanoid then humanoid.WalkSpeed = ws end
+end)
+
+-- Done — paste and test. If mobile fly feels too slow or too floaty, tell me and I will tweak damping/vertical scale.local flySpeed = player:GetAttribute("NBT_flySpeed") or 80
 local killEnabled = player:GetAttribute("NBT_killEnabled")
 local auraRadius = player:GetAttribute("NBT_auraRadius") or 100
 
