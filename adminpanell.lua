@@ -1,4 +1,4 @@
-- Created by 𝕹𝖆𝖘𝖙𝖞 𝕹𝖚𝖓
+-- Created by 𝕹𝖆𝖘𝖙𝖞 𝕹𝖚𝖓
 -- Features:
 -- WalkSpeed (25,50,100) | Noclip | Infinite Jump | Instant Anything (always on)
 -- Anti-AFK | Teleport Save/Place 1-3 (stacked) | Rainbow ESP + distance | FPS counter
